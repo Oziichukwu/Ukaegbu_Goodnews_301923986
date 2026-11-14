@@ -1,0 +1,26 @@
+# Local services for re-running the portfolio scripts (see README "Quick start").
+#   docker compose up -d
+#   PGHOST=localhost PGUSER=postgres PGPASSWORD=postgres ./run_all.sh
+# The evidence in this repository was produced with PostgreSQL 16 and MongoDB 8.0,
+# the same major versions as these images.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 30
+
+  mongo:
+    image: mongo:8.0
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 2s
+      retries: 30
