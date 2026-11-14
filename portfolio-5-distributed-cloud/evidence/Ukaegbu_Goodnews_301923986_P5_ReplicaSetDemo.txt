@@ -1,0 +1,68 @@
+# Portfolio 5 - three-member replica set demonstration
+# Generated on 2026-11-14 21:31:24 UTC; mongod v8.0.23
+
+=== Start three mongod processes as replica set rs0 ===
+  started member on port 27101
+  started member on port 27102
+  started member on port 27103
+  rs.initiate ok=1
+  primary elected: 127.0.0.1:27101
+
+=== 1. Members and states ===
+  127.0.0.1:27101  PRIMARY     health=1  (answering)
+  127.0.0.1:27102  SECONDARY   health=1
+  127.0.0.1:27103  SECONDARY   health=1
+
+=== 2. Majority writes, then read the documents on every member ===
+  insertMany acknowledged=true, inserted=3, writeConcern w=majority
+  127.0.0.1:27101  PRIMARY    documents=3
+  127.0.0.1:27102  SECONDARY  documents=3
+  127.0.0.1:27103  SECONDARY  documents=3
+
+=== 3. Replication lag seen by the primary ===
+  source: 127.0.0.1:27102
+  {
+    syncedTo: 'Sat Nov 14 2026 21:31:38 GMT+0000 (Coordinated Universal Time)',
+    replLag: '0 secs (0 hrs) behind the primary '
+  }
+  ---
+  source: 127.0.0.1:27103
+  {
+    syncedTo: 'Sat Nov 14 2026 21:31:38 GMT+0000 (Coordinated Universal Time)',
+    replLag: '0 secs (0 hrs) behind the primary '
+  }
+
+=== 4. Crash the primary (kill -9) and measure the election ===
+  primary before the crash: 127.0.0.1:27101 (term 1)
+  killed the primary process at t=0 ms
+  new primary: 127.0.0.1:27103 detected after 9099 ms
+  term now 2, election reason: electionTimeout
+  heartbeat election timeout setting: 10000 ms
+  127.0.0.1:27101  (not reachable/healthy)  health=0
+  127.0.0.1:27102  SECONDARY   health=1
+  127.0.0.1:27103  PRIMARY     health=1  (answering)
+
+=== 5. Write on the new primary while one member is down (2 of 3 = majority) ===
+  insertOne acknowledged=true with w=majority; documents now 4
+
+=== 6. Restart the crashed member and check it catches up ===
+  127.0.0.1:27101 rejoined as SECONDARY with documents=4
+
+=== 7. Stop two members so no majority is left ===
+  stopped member on port 27102
+  stopped member on port 27103
+  only 127.0.0.1:27101 is still running (1 of 3 votes)
+  after 12 s: isWritablePrimary=false, primary known=none
+  write refused: code 10107 (NotWritablePrimary)
+  127.0.0.1:27101  SECONDARY   health=1  (answering)
+  127.0.0.1:27102  (not reachable/healthy)  health=0
+  127.0.0.1:27103  (not reachable/healthy)  health=0
+
+=== 8. Restart the stopped members; a primary is elected and all members agree ===
+  primary elected: 127.0.0.1:27101
+  127.0.0.1:27101  PRIMARY    documents=4  ids=rs_event_1,rs_event_2,rs_event_3,rs_event_4
+  127.0.0.1:27102  SECONDARY  documents=4  ids=rs_event_1,rs_event_2,rs_event_3,rs_event_4
+  127.0.0.1:27103  SECONDARY  documents=4  ids=rs_event_1,rs_event_2,rs_event_3,rs_event_4
+
+=== Shut down and remove the temporary data ===
+  done
