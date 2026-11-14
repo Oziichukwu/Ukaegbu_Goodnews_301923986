@@ -1,4 +1,5 @@
--- Run these deliberately invalid statements one at a time, outside a transaction.
+-- Run these deliberately invalid statements one at a time, outside a transaction
+-- (for example: psql -v ON_ERROR_STOP=0 -v VERBOSITY=verbose -f this_file.sql).
 -- Each should fail at the named constraint; the sample rows should remain unchanged.
 
 -- 1. customer pk. Expected: pk_customer, SQLSTATE 23505.
@@ -96,3 +97,19 @@ VALUES (930201, 2001, 0, '2025-05-06T10:00:00Z', 'pending', NULL, 'Fresh Benefic
 -- 24. payment reference partial unique. Expected: payment_reference_idempotent, SQLSTATE 23505.
 INSERT INTO portfolio."payment" ("payment_id", "account_id", "amount", "requested_at", "status", "external_reference", "beneficiary_label")
 VALUES (930202, 2001, 1, '2025-05-07T10:00:00Z', 'pending', 'EXT-001', 'Fresh Beneficiary');
+
+-- 25. customer status allowed values. Expected: customer_status_allowed, SQLSTATE 23514.
+INSERT INTO portfolio."customer" ("customer_id", "legal_name", "opened_date", "status")
+VALUES (910201, 'Jordan Lee', '2025-05-08', 'dormant');
+
+-- 26. account status allowed values. Expected: account_status_allowed, SQLSTATE 23514.
+INSERT INTO portfolio."account" ("account_id", "customer_id", "opened_date", "currency", "available_balance", "status")
+VALUES (920301, 1001, '2025-05-08', 'USD', 100, 'active');
+
+-- 27. account currency ISO format. Expected: account_currency_iso, SQLSTATE 23514.
+INSERT INTO portfolio."account" ("account_id", "customer_id", "opened_date", "currency", "available_balance", "status")
+VALUES (920302, 1001, '2025-05-08', 'usd', 100, 'open');
+
+-- 28. payment status allowed values. Expected: payment_status_allowed, SQLSTATE 23514.
+INSERT INTO portfolio."payment" ("payment_id", "account_id", "amount", "requested_at", "status", "external_reference", "beneficiary_label")
+VALUES (930301, 2001, 1, '2025-05-08T10:00:00Z', 'completed', NULL, 'Fresh Beneficiary');

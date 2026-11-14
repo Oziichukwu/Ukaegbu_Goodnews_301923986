@@ -7,29 +7,31 @@ erDiagram
         bigint customer_id PK
         text legal_name
         date opened_date
-        text status
+        text status "active | suspended | closed"
     }
     account {
         bigint account_id PK
         bigint customer_id FK
         date opened_date
-        text currency
-        numeric available_balance
-        text status
+        text currency "3-letter code"
+        numeric available_balance ">= 0"
+        text status "open | frozen | closed"
     }
     payment {
         bigint payment_id PK
         bigint account_id FK
-        numeric amount
+        numeric amount "> 0"
         timestamptz requested_at
-        text status
-        text external_reference "Optional"
+        text status "pending | posted | failed"
+        text external_reference UK "optional; unique when not null"
         text beneficiary_label
     }
-    customer ||--o{ account : "customer_id"
-    account ||--o{ payment : "account_id"
+    customer ||--o{ account : "owns (customer_id)"
+    account ||--o{ payment : "debited by (account_id)"
 ```
 
-PK identifies a record; FK links to another table; UK marks a single-field unique value. The relationship ends show exactly one, zero or one, or zero or many records. Composite unique keys and conditional rules are listed in the schema and design.
+**Legend.** PK: primary key. FK: foreign key to another table. UK: unique value — here `external_reference` is unique only when it is not null (partial unique index `payment_reference_idempotent`). Quoted text after a field shows its CHECK rule or allowed values. The crow's-foot ends read: one customer owns zero or many accounts; one account is debited by zero or many payments; every account and payment has exactly one parent.
+
+There are no composite keys in this design. Supporting indexes (`idx_account_customer_id`, `idx_payment_account_requested_at`) are listed in the [design](Ukaegbu_Goodnews_301923986_P1_Design.md#indexes).
 
 [Diagram image](../images/Ukaegbu_Goodnews_301923986_ERDiagram.png)
