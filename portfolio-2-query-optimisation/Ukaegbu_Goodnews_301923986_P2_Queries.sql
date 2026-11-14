@@ -1,51 +1,59 @@
--- Show related payment, account, customer records (up to 20).
-SELECT t0."payment_id" AS "payment_payment_id",
-       t0."amount" AS "payment_amount",
-       t1."account_id" AS "account_account_id",
-       t1."opened_date" AS "account_opened_date",
-       t2."customer_id" AS "customer_customer_id",
-       t2."legal_name" AS "customer_legal_name"
-FROM portfolio."payment" t0
-JOIN portfolio."account" t1 ON t0."account_id" = t1."account_id"
-JOIN portfolio."customer" t2 ON t1."customer_id" = t2."customer_id"
-ORDER BY t0."payment_id", t1."account_id", t2."customer_id"
+-- Portfolio 2: case queries on the Portfolio 1 sample data.
+-- Each query runs once to show its result, then under EXPLAIN (ANALYZE, BUFFERS)
+-- to show the plan PostgreSQL actually used.
+
+-- 1. Payments with their account and customer (join across all three tables).
+SELECT p."payment_id", p."amount", a."currency", p."status",
+       a."account_id", c."customer_id", c."legal_name"
+FROM portfolio."payment" p
+JOIN portfolio."account" a ON a."account_id" = p."account_id"
+JOIN portfolio."customer" c ON c."customer_id" = a."customer_id"
+ORDER BY p."payment_id"
 LIMIT 20;
 
-EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-SELECT t0."payment_id" AS "payment_payment_id",
-       t0."amount" AS "payment_amount",
-       t1."account_id" AS "account_account_id",
-       t1."opened_date" AS "account_opened_date",
-       t2."customer_id" AS "customer_customer_id",
-       t2."legal_name" AS "customer_legal_name"
-FROM portfolio."payment" t0
-JOIN portfolio."account" t1 ON t0."account_id" = t1."account_id"
-JOIN portfolio."customer" t2 ON t1."customer_id" = t2."customer_id"
-ORDER BY t0."payment_id", t1."account_id", t2."customer_id"
+EXPLAIN (ANALYZE, BUFFERS, COSTS OFF)
+SELECT p."payment_id", p."amount", a."currency", p."status",
+       a."account_id", c."customer_id", c."legal_name"
+FROM portfolio."payment" p
+JOIN portfolio."account" a ON a."account_id" = p."account_id"
+JOIN portfolio."customer" c ON c."customer_id" = a."customer_id"
+ORDER BY p."payment_id"
 LIMIT 20;
 
--- Find payment records where requested_at matches "2025-04-02T14:30:00Z" (up to 20).
-SELECT * FROM portfolio."payment"
-WHERE "requested_at" IS NOT DISTINCT FROM '2025-04-02T14:30:00Z'
-ORDER BY "payment_id"
-LIMIT 20;
+-- 2. Review payments by account and time period (the case's main review operation):
+--    account 2003 during April 2025. A half-open range [start, end) avoids
+--    missing or double-counting payments on the boundary.
+SELECT p."payment_id", p."requested_at", p."amount", p."status", p."beneficiary_label"
+FROM portfolio."payment" p
+WHERE p."account_id" = 2003
+  AND p."requested_at" >= TIMESTAMPTZ '2025-04-01 00:00:00+00'
+  AND p."requested_at" <  TIMESTAMPTZ '2025-05-01 00:00:00+00'
+ORDER BY p."requested_at";
 
-EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-SELECT * FROM portfolio."payment"
-WHERE "requested_at" IS NOT DISTINCT FROM '2025-04-02T14:30:00Z'
-ORDER BY "payment_id"
-LIMIT 20;
+EXPLAIN (ANALYZE, BUFFERS, COSTS OFF)
+SELECT p."payment_id", p."requested_at", p."amount", p."status", p."beneficiary_label"
+FROM portfolio."payment" p
+WHERE p."account_id" = 2003
+  AND p."requested_at" >= TIMESTAMPTZ '2025-04-01 00:00:00+00'
+  AND p."requested_at" <  TIMESTAMPTZ '2025-05-01 00:00:00+00'
+ORDER BY p."requested_at";
 
--- Count payment records for each account_id (up to 20 groups).
-SELECT "account_id", count(*) AS record_count
-FROM portfolio."payment"
-GROUP BY "account_id"
-ORDER BY record_count DESC, "account_id" NULLS LAST
-LIMIT 20;
 
-EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-SELECT "account_id", count(*) AS record_count
-FROM portfolio."payment"
-GROUP BY "account_id"
-ORDER BY record_count DESC, "account_id" NULLS LAST
-LIMIT 20;
+-- 3. Activity per account, including accounts with no payments (LEFT JOIN),
+--    with the number of payments and the total value actually posted.
+SELECT a."account_id", a."currency",
+       count(p."payment_id") AS payment_count,
+       coalesce(sum(p."amount") FILTER (WHERE p."status" = 'posted'), 0) AS posted_total
+FROM portfolio."account" a
+LEFT JOIN portfolio."payment" p ON p."account_id" = a."account_id"
+GROUP BY a."account_id", a."currency"
+ORDER BY payment_count DESC, a."account_id";
+
+EXPLAIN (ANALYZE, BUFFERS, COSTS OFF)
+SELECT a."account_id", a."currency",
+       count(p."payment_id") AS payment_count,
+       coalesce(sum(p."amount") FILTER (WHERE p."status" = 'posted'), 0) AS posted_total
+FROM portfolio."account" a
+LEFT JOIN portfolio."payment" p ON p."account_id" = a."account_id"
+GROUP BY a."account_id", a."currency"
+ORDER BY payment_count DESC, a."account_id";
